@@ -31,8 +31,8 @@ struct captureApp: App {
 
   var body: some Scene {
     WindowGroup {
-      NavigationView {
-          OnboardingScreen()
+      NavigationStack {
+        SplashScreen()
       }
     }
   }

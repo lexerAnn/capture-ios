@@ -16,6 +16,13 @@
 		9F784A5F2DB667E0004BC555 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9F784A5E2DB667E0004BC555 /* FirebaseFirestore */; };
 		9F784A612DB667E0004BC555 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 9F784A602DB667E0004BC555 /* FirebaseStorage */; };
 		9F784A632DB66A13004BC555 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 9F784A622DB66A13004BC555 /* GoogleService-Info.plist */; };
+		9F784A662DB67527004BC555 /* CreateScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A652DB67527004BC555 /* CreateScreen.swift */; };
+		9F784A682DB67538004BC555 /* CameraScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A672DB67538004BC555 /* CameraScreen.swift */; };
+		9F784A6A2DB6754E004BC555 /* SettingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A692DB6754E004BC555 /* SettingScreen.swift */; };
+		9F784A6C2DB67988004BC555 /* EventDetailsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A6B2DB67988004BC555 /* EventDetailsScreen.swift */; };
+		9F784A6E2DB679CD004BC555 /* EventRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A6D2DB679CD004BC555 /* EventRepository.swift */; };
+		9F784A702DB679E6004BC555 /* EventViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A6F2DB679E6004BC555 /* EventViewModel.swift */; };
+		9F784A722DB67D0E004BC555 /* EventModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F784A712DB67D0E004BC555 /* EventModel.swift */; };
 		9F827F082DB652B600330F21 /* captureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F827F072DB652B600330F21 /* captureApp.swift */; };
 		9F827F0A2DB652B600330F21 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F827F092DB652B600330F21 /* ContentView.swift */; };
 		9F827F0C2DB652B700330F21 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9F827F0B2DB652B700330F21 /* Assets.xcassets */; };
@@ -28,6 +35,13 @@
 		9F45EF432DB65A2900CB77B1 /* MainScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainScreen.swift; sourceTree = "<group>"; };
 		9F784A622DB66A13004BC555 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "../../../Desktop/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		9F784A642DB66CC3004BC555 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9F784A652DB67527004BC555 /* CreateScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateScreen.swift; sourceTree = "<group>"; };
+		9F784A672DB67538004BC555 /* CameraScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraScreen.swift; sourceTree = "<group>"; };
+		9F784A692DB6754E004BC555 /* SettingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingScreen.swift; sourceTree = "<group>"; };
+		9F784A6B2DB67988004BC555 /* EventDetailsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailsScreen.swift; sourceTree = "<group>"; };
+		9F784A6D2DB679CD004BC555 /* EventRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventRepository.swift; sourceTree = "<group>"; };
+		9F784A6F2DB679E6004BC555 /* EventViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventViewModel.swift; sourceTree = "<group>"; };
+		9F784A712DB67D0E004BC555 /* EventModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventModel.swift; sourceTree = "<group>"; };
 		9F827F042DB652B600330F21 /* capture.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = capture.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F827F072DB652B600330F21 /* captureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = captureApp.swift; sourceTree = "<group>"; };
 		9F827F092DB652B600330F21 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -108,6 +122,10 @@
 				9F45EF3F2DB658CB00CB77B1 /* OnboadingScreen.swift */,
 				9F45EF412DB659A200CB77B1 /* SplashScreen.swift */,
 				9F45EF432DB65A2900CB77B1 /* MainScreen.swift */,
+				9F784A652DB67527004BC555 /* CreateScreen.swift */,
+				9F784A672DB67538004BC555 /* CameraScreen.swift */,
+				9F784A692DB6754E004BC555 /* SettingScreen.swift */,
+				9F784A6B2DB67988004BC555 /* EventDetailsScreen.swift */,
 			);
 			path = ui;
 			sourceTree = "<group>";
@@ -115,6 +133,7 @@
 		9F827F172DB655B400330F21 /* vm */ = {
 			isa = PBXGroup;
 			children = (
+				9F784A6F2DB679E6004BC555 /* EventViewModel.swift */,
 			);
 			path = vm;
 			sourceTree = "<group>";
@@ -122,6 +141,7 @@
 		9F827F182DB655BE00330F21 /* repository */ = {
 			isa = PBXGroup;
 			children = (
+				9F784A6D2DB679CD004BC555 /* EventRepository.swift */,
 			);
 			path = repository;
 			sourceTree = "<group>";
@@ -153,6 +173,7 @@
 		9F827F1C2DB655DD00330F21 /* models */ = {
 			isa = PBXGroup;
 			children = (
+				9F784A712DB67D0E004BC555 /* EventModel.swift */,
 			);
 			path = models;
 			sourceTree = "<group>";
@@ -240,9 +261,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				9F45EF422DB659A200CB77B1 /* SplashScreen.swift in Sources */,
+				9F784A662DB67527004BC555 /* CreateScreen.swift in Sources */,
+				9F784A682DB67538004BC555 /* CameraScreen.swift in Sources */,
+				9F784A702DB679E6004BC555 /* EventViewModel.swift in Sources */,
+				9F784A6C2DB67988004BC555 /* EventDetailsScreen.swift in Sources */,
+				9F784A6E2DB679CD004BC555 /* EventRepository.swift in Sources */,
 				9F45EF402DB658CB00CB77B1 /* OnboadingScreen.swift in Sources */,
+				9F784A6A2DB6754E004BC555 /* SettingScreen.swift in Sources */,
 				9F45EF442DB65A2900CB77B1 /* MainScreen.swift in Sources */,
 				9F827F0A2DB652B600330F21 /* ContentView.swift in Sources */,
+				9F784A722DB67D0E004BC555 /* EventModel.swift in Sources */,
 				9F827F082DB652B600330F21 /* captureApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
