@@ -1,15 +1,31 @@
-//
-//  MainScreen.swift
-//  capture
-//
-//  Created by Leslie Annan on 21/04/2025.
-//
-
 import SwiftUI
 
 struct MainScreen: View {
     @AppStorage("isUserSignedIn") private var isUserSignedIn = true
     @State private var selectedTab = 0
+    
+    init() {
+        // Make the tab bar background opaque and clean
+        UITabBar.appearance().isTranslucent = false
+        UITabBar.appearance().backgroundColor = UIColor.white
+        
+        // Remove default tab bar top separator line
+        UITabBar.appearance().shadowImage = UIImage()
+        UITabBar.appearance().backgroundImage = UIImage()
+        
+        // Add a custom top border (optional)
+        let tabBarAppearance = UITabBarAppearance()
+        tabBarAppearance.configureWithOpaqueBackground()
+        tabBarAppearance.backgroundColor = UIColor.white
+        
+        // Remove the tab bar top shadow
+        tabBarAppearance.shadowColor = UIColor.clear
+        
+        UITabBar.appearance().standardAppearance = tabBarAppearance
+        if #available(iOS 15.0, *) {
+            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+        }
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -23,7 +39,7 @@ struct MainScreen: View {
             }
             .tag(0)
             
-            // Camera Screen Tab
+            // Camera Screen Tab - Using the improved camera screen
             CameraScreen()
                 .tabItem {
                     Image(systemName: "camera")
@@ -40,6 +56,8 @@ struct MainScreen: View {
                 .tag(2)
         }
         .accentColor(.blue) // Color of selected tab
+        // Disable content insets so content can extend to the edges
+        .edgesIgnoringSafeArea(.bottom)
     }
 }
 

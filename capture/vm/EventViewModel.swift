@@ -38,13 +38,20 @@ class EventViewModel: ObservableObject {
     }
     
     // Load events from repository
-    private func loadEvents() {
+    func loadEvents() {
+        print("Loading events from repository")
         eventRepository.getHostedEvents { [weak self] events in
-            self?.hostedEvents = events
+            DispatchQueue.main.async {
+                self?.hostedEvents = events
+                print("Loaded \(events.count) hosted events")
+            }
         }
         
         eventRepository.getParticipatingEvents { [weak self] events in
-            self?.participatingEvents = events
+            DispatchQueue.main.async {
+                self?.participatingEvents = events
+                print("Loaded \(events.count) participating events")
+            }
         }
     }
     
@@ -121,6 +128,7 @@ class EventViewModel: ObservableObject {
     
     // Update an existing event
     func updateEvent(eventId: String) {
+        print("updateEvent called with ID: \(eventId)")
         eventCreationState = .loading
         
         guard let currentEvent = loadedEvent else {
@@ -133,9 +141,11 @@ class EventViewModel: ObservableObject {
         
         // If there's a new image, upload it first
         if let newImage = backgroundImage {
+            print("Uploading new image for event")
             eventRepository.updateEventImage(eventId: eventId, image: newImage) { [weak self] result in
                 switch result {
                 case .success(let newImageUrl):
+                    print("Image uploaded successfully: \(newImageUrl)")
                     updatedBackgroundImageUrl = newImageUrl
                     self?.continueEventUpdate(
                         currentEvent: currentEvent,
@@ -143,6 +153,7 @@ class EventViewModel: ObservableObject {
                         updatedBackgroundImageUrl: updatedBackgroundImageUrl
                     )
                 case .failure(let error):
+                    print("Image upload failed: \(error.localizedDescription)")
                     DispatchQueue.main.async {
                         self?.eventCreationState = .error(message: error.localizedDescription)
                     }
@@ -150,6 +161,7 @@ class EventViewModel: ObservableObject {
             }
         } else {
             // No new image, just update the event
+            print("No new image, continuing with update")
             continueEventUpdate(
                 currentEvent: currentEvent,
                 eventId: eventId,
@@ -160,6 +172,7 @@ class EventViewModel: ObservableObject {
     
     // Helper function to continue event update after potential image upload
     private func continueEventUpdate(currentEvent: EventModel, eventId: String, updatedBackgroundImageUrl: String) {
+        print("Continuing event update with ID: \(eventId)")
         // Create updated event with all changed fields
         let updatedEvent = EventModel(
             id: currentEvent.id,
@@ -180,14 +193,17 @@ class EventViewModel: ObservableObject {
         )
         
         // Update the event in Firestore
+        print("Sending updated event to repository")
         eventRepository.updateEvent(updatedEvent) { [weak self] result in
             switch result {
             case .success:
+                print("Event updated successfully")
                 DispatchQueue.main.async {
                     self?.eventCreationState = .success
                     self?.loadEvents()
                 }
             case .failure(let error):
+                print("Event update failed: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     self?.eventCreationState = .error(message: error.localizedDescription)
                 }

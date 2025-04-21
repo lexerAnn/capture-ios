@@ -3,11 +3,17 @@ import FirebaseFirestore
 
 struct EventDetailsScreen: View {
     let eventName: String
+    let existingEvent: EventModel?
+    let isEditMode: Bool
+    
     @StateObject private var viewModel = EventViewModel()
     @Environment(\.presentationMode) var presentationMode
     
     // Navigation state
     @State private var navigateToNextScreen = false
+    @State private var showSuccessAlert = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     
     // Photo picker state
     @State private var showingImagePicker = false
@@ -39,8 +45,14 @@ struct EventDetailsScreen: View {
         return formatter
     }()
     
-    init(eventName: String) {
+    init(eventName: String, existingEvent: EventModel? = nil, isEditMode: Bool = false) {
         self.eventName = eventName
+        self.existingEvent = existingEvent
+        self.isEditMode = isEditMode
+        print("Initializing EventDetailsScreen with editMode: \(isEditMode)")
+        if let event = existingEvent {
+            print("Loaded event with id: \(event.id), name: \(event.eventName)")
+        }
     }
     
     var body: some View {
@@ -55,20 +67,22 @@ struct EventDetailsScreen: View {
                     // Settings section
                     settingsSection
                     
-                    // Continue button
-                    continueButton
+                    // Continue/Update button
+                    actionButton
+                    Spacer(minLength: 0)
                 }
                 .padding(.bottom, 20)
             }
             .padding(.horizontal, 5)
         }
-        .navigationBarTitle("Event Details", displayMode: .inline)
+        .navigationBarTitle(isEditMode ? "Edit Event" : "Event Details", displayMode: .inline)
+        .navigationBarItems(trailing: isEditMode ? EditButton() : nil)
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(image: $inputImage)
                 .onDisappear {
                     // Update preview when image is selected
-                    if inputImage != nil {
-                        viewModel.updateBackgroundImage(inputImage!)
+                    if let inputImage = inputImage {
+                        viewModel.updateBackgroundImage(inputImage)
                     }
                 }
         }
@@ -108,8 +122,31 @@ struct EventDetailsScreen: View {
         .sheet(isPresented: $showingDatePicker) {
             datePickerSheet
         }
+        .alert("Success", isPresented: $showSuccessAlert) {
+            Button("OK") {
+                presentationMode.wrappedValue.dismiss()
+            }
+        } message: {
+            Text(isEditMode ? "Event updated successfully!" : "Event created successfully!")
+        }
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK") {}
+        } message: {
+            Text(errorMessage)
+        }
         .onAppear {
-            initializeEvent()
+            if let existingEvent = existingEvent {
+                // Load existing event for editing
+                viewModel.loadEvent(event: existingEvent)
+                
+                // Try to load the image if available
+                if !existingEvent.backgroundImageUrl.isEmpty {
+                    loadImageFromUrl(existingEvent.backgroundImageUrl)
+                }
+            } else {
+                // Initialize with default values for new event
+                initializeEvent()
+            }
         }
         // Add navigation link for after event creation
         .background(
@@ -118,9 +155,21 @@ struct EventDetailsScreen: View {
             }
         )
         // Add a listener for event creation state
-        // Monitor event creation state manually since EventCreationState doesn't conform to Equatable
         .onReceive(viewModel.$eventCreationState) { newState in
             handleEventCreationStateChange(newState)
+        }
+    }
+    
+    // MARK: - Custom Views
+    
+    // Custom Edit Button
+    struct EditButton: View {
+        var body: some View {
+            Image(systemName: "square.and.pencil")
+                .foregroundColor(.white)
+                .padding(8)
+                .background(Color.blue)
+                .clipShape(Circle())
         }
     }
     
@@ -428,8 +477,14 @@ struct EventDetailsScreen: View {
         .padding(.vertical, 12)
     }
     
-    private var continueButton: some View {
-        Button(action: createEvent) {
+    private var actionButton: some View {
+        Button(action: {
+            if isEditMode {
+                updateEvent()
+            } else {
+                createEvent()
+            }
+        }) {
             if viewModel.eventCreationState == .loading {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -438,16 +493,16 @@ struct EventDetailsScreen: View {
                     .background(Color.blue)
                     .cornerRadius(10)
             } else {
-                Text(inputImage != nil ? "Continue →" : "Add a Photo to Continue →")
+                Text(isEditMode ? "Update Event" : (inputImage != nil ? "Continue →" : "Add a Photo to Continue →"))
                     .fontWeight(.semibold)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(inputImage != nil ? Color.blue : Color.gray.opacity(0.3))
+                    .background(inputImage != nil || isEditMode ? Color.blue : Color.gray.opacity(0.3))
                     .foregroundColor(.white)
                     .cornerRadius(10)
             }
         }
-        .disabled(inputImage == nil || viewModel.eventCreationState == .loading)
+        .disabled((inputImage == nil && !isEditMode) || viewModel.eventCreationState == .loading)
         .padding(.horizontal)
     }
     
@@ -509,6 +564,28 @@ struct EventDetailsScreen: View {
     
     // MARK: - Methods
     
+    private func loadImageFromUrl(_ imageUrl: String) {
+        print("Loading image from URL: \(imageUrl)")
+        guard let url = URL(string: imageUrl) else {
+            print("Invalid URL: \(imageUrl)")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("Error loading image: \(error.localizedDescription)")
+                return
+            }
+            
+            if let data = data, let uiImage = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    print("Image loaded successfully")
+                    self.inputImage = uiImage
+                }
+            }
+        }.resume()
+    }
+    
     private func initializeEvent() {
         let event = EventModel(
             id: UUID().uuidString,
@@ -550,18 +627,63 @@ struct EventDetailsScreen: View {
         viewModel.createEvent()
     }
     
+    private func updateEvent() {
+        print("Update button pressed, updating event...")
+        guard let event = viewModel.loadedEvent else {
+            print("No loaded event found")
+            errorMessage = "No event to update"
+            showErrorAlert = true
+            return
+        }
+        
+        print("Updating event with ID: \(event.id)")
+        
+        // Update all values in the view model
+        viewModel.updateEventName(event.eventName)
+        viewModel.updateEventTitle(event.title)
+        viewModel.updateEventSubtitle(event.subtitle)
+        viewModel.updateButtonText(event.buttonText)
+        
+        if let endDate = event.endDate {
+            viewModel.updateEndDate(endDate.dateValue())
+        }
+        
+        viewModel.updateRevealPhotosTiming(event.revealPhotosTiming)
+        viewModel.updatePhotosPerPerson(event.photosPerPerson)
+        viewModel.updateMaxGuests(event.maxGuests)
+        viewModel.updateGalleryAccess(event.galleryAccess)
+        
+        // If there's a new image, update it
+        if let image = inputImage {
+            print("Updating with new image")
+            viewModel.updateBackgroundImage(image)
+        }
+        
+        // Update the event and handle state changes
+        viewModel.updateEvent(eventId: event.id)
+    }
+    
     // Handle state changes from the viewModel
     private func handleEventCreationStateChange(_ state: EventViewModel.EventCreationState) {
+        print("Event state changed: \(state)")
         switch state {
         case .success:
-            // Navigate to next screen or dismiss this one
-            navigateToNextScreen = true
+            print("Operation successful")
+            if isEditMode {
+                // Show success alert when updating
+                showSuccessAlert = true
+            } else {
+                // Navigate to next screen when creating
+                navigateToNextScreen = true
+            }
         case .error(let message):
-            // Could add an alert here to display the error
-            print("Error creating event: \(message)")
-        case .idle, .loading:
-            // No action needed for these states
-            break
+            print("Error: \(message)")
+            errorMessage = message
+            showErrorAlert = true
+        case .idle:
+            print("State: idle")
+        case .loading:
+            print("State: loading")
         }
     }
 }
