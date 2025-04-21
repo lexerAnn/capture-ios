@@ -11,21 +11,21 @@ import FirebaseFirestore
 struct EventModel: Identifiable {
     static let COLLECTION_NAME = "events"
     
-    let id: String
-    let eventName: String
-    let title: String
-    let subtitle: String
-    let buttonText: String
-    let backgroundImageUrl: String
-    let creatorId: String
-    let status: String
-    let endDate: Timestamp?
-    let createdAt: Timestamp
-    let revealPhotosTiming: String
-    let photosPerPerson: Int
-    let maxGuests: Int
-    let galleryAccess: Bool
-    let participants: [String]
+    var id: String
+    var eventName: String
+    var title: String
+    var subtitle: String
+    var buttonText: String
+    var backgroundImageUrl: String
+    var creatorId: String
+    var status: String
+    var endDate: Timestamp?
+    var createdAt: Timestamp
+    var revealPhotosTiming: String
+    var photosPerPerson: Int
+    var maxGuests: Int
+    var galleryAccess: Bool
+    var participants: [String]
     
     // Convert to dictionary for Firestore
     func toDict() -> [String: Any] {

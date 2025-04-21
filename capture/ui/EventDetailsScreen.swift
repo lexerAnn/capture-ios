@@ -4,6 +4,10 @@ import FirebaseFirestore
 struct EventDetailsScreen: View {
     let eventName: String
     @StateObject private var viewModel = EventViewModel()
+    @Environment(\.presentationMode) var presentationMode
+    
+    // Navigation state
+    @State private var navigateToNextScreen = false
     
     // Photo picker state
     @State private var showingImagePicker = false
@@ -26,8 +30,8 @@ struct EventDetailsScreen: View {
     let maxGuestsOptions = [5, 10, 20, 30, 50, 100]
     
     // Fixed dimensions for preview card
-    private let previewCardHeight: CGFloat = 450 // Increased height
-    private let previewCardWidth: CGFloat = 240 // Even larger width for better centering
+    private let previewCardHeight: CGFloat = 450
+    private let previewCardWidth: CGFloat = 240
     
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -45,7 +49,7 @@ struct EventDetailsScreen: View {
             
             ScrollView {
                 VStack(spacing: 30) {
-                    // Preview section - redesigned with better centering and right-corner options
+                    // Preview section
                     previewSection
                     
                     // Settings section
@@ -56,26 +60,50 @@ struct EventDetailsScreen: View {
                 }
                 .padding(.bottom, 20)
             }
-            .padding(.horizontal, 5) // Reduced overall horizontal padding
+            .padding(.horizontal, 5)
         }
         .navigationBarTitle("Event Details", displayMode: .inline)
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(image: $inputImage)
+                .onDisappear {
+                    // Update preview when image is selected
+                    if inputImage != nil {
+                        viewModel.updateBackgroundImage(inputImage!)
+                    }
+                }
         }
         .alert("Edit Title", isPresented: $showingTitleEditor) {
             TextField("Title", text: $tempTitle)
-            Button("Cancel", role: .cancel) { }
-            Button("OK") { viewModel.updateEventTitle(tempTitle) }
+            Button("Cancel", role: .cancel) {}
+            Button("OK") {
+                viewModel.updateEventTitle(tempTitle)
+                if var updatedEvent = viewModel.loadedEvent {
+                    updatedEvent.title = tempTitle
+                    viewModel.populateFromEvent(event: updatedEvent)
+                }
+            }
         }
         .alert("Edit Subtitle", isPresented: $showingSubtitleEditor) {
             TextField("Subtitle", text: $tempSubtitle)
-            Button("Cancel", role: .cancel) { }
-            Button("OK") { viewModel.updateEventSubtitle(tempSubtitle) }
+            Button("Cancel", role: .cancel) {}
+            Button("OK") {
+                viewModel.updateEventSubtitle(tempSubtitle)
+                if var updatedEvent = viewModel.loadedEvent {
+                    updatedEvent.subtitle = tempSubtitle
+                    viewModel.populateFromEvent(event: updatedEvent)
+                }
+            }
         }
         .alert("Edit Button Text", isPresented: $showingButtonEditor) {
             TextField("Button Text", text: $tempButtonText)
-            Button("Cancel", role: .cancel) { }
-            Button("OK") { viewModel.updateButtonText(tempButtonText) }
+            Button("Cancel", role: .cancel) {}
+            Button("OK") {
+                viewModel.updateButtonText(tempButtonText)
+                if var updatedEvent = viewModel.loadedEvent {
+                    updatedEvent.buttonText = tempButtonText
+                    viewModel.populateFromEvent(event: updatedEvent)
+                }
+            }
         }
         .sheet(isPresented: $showingDatePicker) {
             datePickerSheet
@@ -83,12 +111,22 @@ struct EventDetailsScreen: View {
         .onAppear {
             initializeEvent()
         }
+        // Add navigation link for after event creation
+        .background(
+            NavigationLink(destination: Text("Event Created Successfully!"), isActive: $navigateToNextScreen) {
+                EmptyView()
+            }
+        )
+        // Add a listener for event creation state
+        // Monitor event creation state manually since EventCreationState doesn't conform to Equatable
+        .onReceive(viewModel.$eventCreationState) { newState in
+            handleEventCreationStateChange(newState)
+        }
     }
     
     // MARK: - Subviews
     
     private var previewSection: some View {
-        // Layout with centered preview card and right-corner edit buttons
         VStack(spacing: 15) {
             Text("Preview")
                 .font(.subheadline)
@@ -98,15 +136,15 @@ struct EventDetailsScreen: View {
                 .padding(.horizontal)
             
             HStack(alignment: .top) {
-                Spacer(minLength: 20) // Left margin
+                Spacer(minLength: 20)
                 
-                // Preview Card - CENTERED
+                // Preview Card
                 previewCard
                     .frame(width: previewCardWidth, height: previewCardHeight)
                 
-                Spacer() // Flexible space to push buttons to the right
+                Spacer()
                 
-                // Edit Buttons - MOVED TO FAR RIGHT
+                // Edit Buttons
                 editButtons
                     .frame(width: 70)
                     .padding(.trailing, 5)
@@ -115,7 +153,7 @@ struct EventDetailsScreen: View {
         .padding(.top, 10)
         .background(Color.black.opacity(0.2))
         .cornerRadius(16)
-        .padding(.horizontal, 0) // Remove horizontal padding to allow more space
+        .padding(.horizontal, 0)
     }
     
     private var previewCard: some View {
@@ -125,7 +163,7 @@ struct EventDetailsScreen: View {
                 .fill(Color.gray.opacity(0.3))
                 .frame(width: previewCardWidth, height: previewCardHeight)
             
-            // Image if available (constrained to exact same size as background)
+            // Image if available
             if let image = inputImage {
                 Image(uiImage: image)
                     .resizable()
@@ -144,14 +182,14 @@ struct EventDetailsScreen: View {
                 Spacer()
                 
                 VStack(spacing: 10) {
-                    Text(tempTitle)
+                    Text(viewModel.loadedEvent?.title ?? "Hi")
                         .font(.system(size: 42, weight: .bold))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
                     
-                    if !tempSubtitle.isEmpty {
-                        Text(tempSubtitle)
+                    if !(viewModel.loadedEvent?.subtitle ?? "").isEmpty {
+                        Text(viewModel.loadedEvent?.subtitle ?? "")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundColor(.white.opacity(0.9))
                             .multilineTextAlignment(.center)
@@ -162,12 +200,12 @@ struct EventDetailsScreen: View {
                 Spacer()
                 
                 VStack(spacing: 20) {
-                    Text(dateFormatter.string(from: Date()).components(separatedBy: " • ")[0])
+                    Text(dateFormatter.string(from: viewModel.loadedEvent?.endDate?.dateValue() ?? Date()).components(separatedBy: " • ")[0])
                         .font(.system(size: 16))
                         .foregroundColor(.white.opacity(0.8))
                     
                     Button(action: {}) {
-                        Text(tempButtonText)
+                        Text(viewModel.loadedEvent?.buttonText ?? "Take Photos →")
                             .font(.system(size: 18, weight: .semibold))
                             .frame(width: previewCardWidth - 50, height: 56)
                             .background(Color.white)
@@ -180,23 +218,24 @@ struct EventDetailsScreen: View {
             .frame(width: previewCardWidth)
         }
         .frame(width: previewCardWidth, height: previewCardHeight)
-        // Add shadow for better visual separation
         .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
     }
     
     private var editButtons: some View {
         VStack(spacing: 24) {
-            // More stylish edit buttons with increased spacing
             editButton("Photo", systemName: "photo.fill") {
                 showingImagePicker = true
             }
             editButton("Title", systemName: "textformat.alt") {
+                tempTitle = viewModel.loadedEvent?.title ?? "Hi"  // Initialize with current value
                 showingTitleEditor = true
             }
             editButton("Text", systemName: "text.quote") {
+                tempSubtitle = viewModel.loadedEvent?.subtitle ?? ""  // Initialize with current value
                 showingSubtitleEditor = true
             }
             editButton("Button", systemName: "rectangle.and.pencil.and.ellipsis") {
+                tempButtonText = viewModel.loadedEvent?.buttonText ?? "Take Photos →"  // Initialize with current value
                 showingButtonEditor = true
             }
         }
@@ -245,24 +284,90 @@ struct EventDetailsScreen: View {
                 
                 Divider().background(Color.gray.opacity(0.5))
                 
-                menuSettingRow("Reveal Photo", value: viewModel.loadedEvent?.revealPhotosTiming ?? "12 hours after", options: revealOptions) {
-                    viewModel.updateRevealPhotosTiming($0)
+                menuSettingRow("Reveal Photo", value: viewModel.loadedEvent?.revealPhotosTiming ?? "12 hours after", options: revealOptions) { newValue in
+                    viewModel.updateRevealPhotosTiming(newValue)
+                    
+                    // Create a new instance with updated values instead of modifying the existing one
+                    if let event = viewModel.loadedEvent {
+                        let updatedEvent = EventModel(
+                            id: event.id,
+                            eventName: event.eventName,
+                            title: event.title,
+                            subtitle: event.subtitle,
+                            buttonText: event.buttonText,
+                            backgroundImageUrl: event.backgroundImageUrl,
+                            creatorId: event.creatorId,
+                            status: event.status,
+                            endDate: event.endDate,
+                            createdAt: event.createdAt,
+                            revealPhotosTiming: newValue,
+                            photosPerPerson: event.photosPerPerson,
+                            maxGuests: event.maxGuests,
+                            galleryAccess: event.galleryAccess,
+                            participants: event.participants
+                        )
+                        viewModel.populateFromEvent(event: updatedEvent)
+                    }
                 }
                 
                 Divider().background(Color.gray.opacity(0.5))
                 
-                menuSettingRow("Photos per Person", value: "\(viewModel.loadedEvent?.photosPerPerson ?? 10) Photos", options: photosOptions.map { "\($0) Photos" }) {
-                    if let intValue = Int($0.components(separatedBy: " ")[0]) {
+                menuSettingRow("Photos per Person", value: "\(viewModel.loadedEvent?.photosPerPerson ?? 10) Photos", options: photosOptions.map { "\($0) Photos" }) { newValue in
+                    if let intValue = Int(newValue.components(separatedBy: " ")[0]) {
                         viewModel.updatePhotosPerPerson(intValue)
+                        
+                        // Create a new instance with updated values
+                        if let event = viewModel.loadedEvent {
+                            let updatedEvent = EventModel(
+                                id: event.id,
+                                eventName: event.eventName,
+                                title: event.title,
+                                subtitle: event.subtitle,
+                                buttonText: event.buttonText,
+                                backgroundImageUrl: event.backgroundImageUrl,
+                                creatorId: event.creatorId,
+                                status: event.status,
+                                endDate: event.endDate,
+                                createdAt: event.createdAt,
+                                revealPhotosTiming: event.revealPhotosTiming,
+                                photosPerPerson: intValue,
+                                maxGuests: event.maxGuests,
+                                galleryAccess: event.galleryAccess,
+                                participants: event.participants
+                            )
+                            viewModel.populateFromEvent(event: updatedEvent)
+                        }
                     }
                 }
                 
                 Divider().background(Color.gray.opacity(0.5))
                 
                 HStack {
-                    menuSettingRow("Number of participants", value: "Up to \(viewModel.loadedEvent?.maxGuests ?? 10) guests", options: maxGuestsOptions.map { "Up to \($0) guests" }) {
-                        if let intValue = Int($0.components(separatedBy: " ")[2]) {
+                    menuSettingRow("Number of participants", value: "Up to \(viewModel.loadedEvent?.maxGuests ?? 10) guests", options: maxGuestsOptions.map { "Up to \($0) guests" }) { newValue in
+                        if let intValue = Int(newValue.components(separatedBy: " ")[2]) {
                             viewModel.updateMaxGuests(intValue)
+                            
+                            // Create a new instance with updated values
+                            if let event = viewModel.loadedEvent {
+                                let updatedEvent = EventModel(
+                                    id: event.id,
+                                    eventName: event.eventName,
+                                    title: event.title,
+                                    subtitle: event.subtitle,
+                                    buttonText: event.buttonText,
+                                    backgroundImageUrl: event.backgroundImageUrl,
+                                    creatorId: event.creatorId,
+                                    status: event.status,
+                                    endDate: event.endDate,
+                                    createdAt: event.createdAt,
+                                    revealPhotosTiming: event.revealPhotosTiming,
+                                    photosPerPerson: event.photosPerPerson,
+                                    maxGuests: intValue,
+                                    galleryAccess: event.galleryAccess,
+                                    participants: event.participants
+                                )
+                                viewModel.populateFromEvent(event: updatedEvent)
+                            }
                         }
                     }
                     
@@ -304,8 +409,8 @@ struct EventDetailsScreen: View {
             Spacer()
             Menu {
                 ForEach(options, id: \.self) { option in
-                    Button(action: { action(option) }) {
-                        Text(option)
+                    Button(option) {
+                        action(option)
                     }
                 }
             } label: {
@@ -325,25 +430,62 @@ struct EventDetailsScreen: View {
     
     private var continueButton: some View {
         Button(action: createEvent) {
-            Text("Add a Photo to Continue →")
-                .fontWeight(.semibold)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(inputImage != nil ? Color.blue : Color.gray.opacity(0.3))
-                .foregroundColor(.white)
-                .cornerRadius(10)
+            if viewModel.eventCreationState == .loading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            } else {
+                Text(inputImage != nil ? "Continue →" : "Add a Photo to Continue →")
+                    .fontWeight(.semibold)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(inputImage != nil ? Color.blue : Color.gray.opacity(0.3))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
         }
-        .disabled(inputImage == nil)
+        .disabled(inputImage == nil || viewModel.eventCreationState == .loading)
         .padding(.horizontal)
     }
     
     private var datePickerSheet: some View {
         VStack {
+            Text("Select End Date & Time")
+                .font(.headline)
+                .padding(.top)
+            
             DatePicker(
                 "Select end date",
                 selection: Binding(
                     get: { viewModel.loadedEvent?.endDate?.dateValue() ?? Date() },
-                    set: { viewModel.updateEndDate($0) }
+                    set: { newDate in
+                        viewModel.updateEndDate(newDate)
+                        
+                        // Create a new instance with updated end date
+                        if let event = viewModel.loadedEvent {
+                            let updatedEvent = EventModel(
+                                id: event.id,
+                                eventName: event.eventName,
+                                title: event.title,
+                                subtitle: event.subtitle,
+                                buttonText: event.buttonText,
+                                backgroundImageUrl: event.backgroundImageUrl,
+                                creatorId: event.creatorId,
+                                status: event.status,
+                                endDate: Timestamp(date: newDate),
+                                createdAt: event.createdAt,
+                                revealPhotosTiming: event.revealPhotosTiming,
+                                photosPerPerson: event.photosPerPerson,
+                                maxGuests: event.maxGuests,
+                                galleryAccess: event.galleryAccess,
+                                participants: event.participants
+                            )
+                            viewModel.populateFromEvent(event: updatedEvent)
+                        }
+                    }
                 ),
                 displayedComponents: [.date, .hourAndMinute]
             )
@@ -353,8 +495,16 @@ struct EventDetailsScreen: View {
             Button("Done") {
                 showingDatePicker = false
             }
+            .font(.headline)
+            .foregroundColor(.white)
             .padding()
+            .frame(width: 200)
+            .background(Color.blue)
+            .cornerRadius(10)
+            .padding(.bottom)
         }
+        .background(Color(.systemBackground))
+        .cornerRadius(15)
     }
     
     // MARK: - Methods
@@ -378,18 +528,45 @@ struct EventDetailsScreen: View {
             participants: []
         )
         viewModel.populateFromEvent(event: event)
+        
+        // Also update temp values for manual editing
+        tempTitle = "Hi"
+        tempSubtitle = ""
+        tempButtonText = "Take Photos →"
     }
     
     private func createEvent() {
+        // Ensure we're updating the ViewModel with all the latest values
         viewModel.updateEventName(eventName)
+        viewModel.updateEventTitle(viewModel.loadedEvent?.title ?? tempTitle)
+        viewModel.updateEventSubtitle(viewModel.loadedEvent?.subtitle ?? tempSubtitle)
+        viewModel.updateButtonText(viewModel.loadedEvent?.buttonText ?? tempButtonText)
+        
         if let image = inputImage {
             viewModel.updateBackgroundImage(image)
         }
+        
+        // Create the event and observe state changes
         viewModel.createEvent()
+    }
+    
+    // Handle state changes from the viewModel
+    private func handleEventCreationStateChange(_ state: EventViewModel.EventCreationState) {
+        switch state {
+        case .success:
+            // Navigate to next screen or dismiss this one
+            navigateToNextScreen = true
+        case .error(let message):
+            // Could add an alert here to display the error
+            print("Error creating event: \(message)")
+        case .idle, .loading:
+            // No action needed for these states
+            break
+        }
     }
 }
 
-// ImagePicker implementation remains unchanged
+// ImagePicker implementation
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.presentationMode) var presentationMode

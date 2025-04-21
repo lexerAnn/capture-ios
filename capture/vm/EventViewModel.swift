@@ -1,10 +1,3 @@
-//
-//  EventViewModel.swift
-//  capture
-//
-//  Created by Leslie Annan on 21/04/2025.
-//
-
 import Foundation
 import SwiftUI
 import FirebaseFirestore
@@ -244,10 +237,22 @@ class EventViewModel: ObservableObject {
     }
     
     // Event creation/update state
-    enum EventCreationState {
+    enum EventCreationState: Equatable {
         case idle
         case loading
         case success
         case error(message: String)
+        
+        // Custom implementation of Equatable because of associated value
+        static func == (lhs: EventCreationState, rhs: EventCreationState) -> Bool {
+            switch (lhs, rhs) {
+            case (.idle, .idle), (.loading, .loading), (.success, .success):
+                return true
+            case (.error(let lhsMessage), .error(let rhsMessage)):
+                return lhsMessage == rhsMessage
+            default:
+                return false
+            }
+        }
     }
 }

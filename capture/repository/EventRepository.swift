@@ -1,165 +1,149 @@
-//
-//  EventRepository.swift
-//  capture
-//
-//  Created by Leslie Annan on 21/04/2025.
-//
-
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 import FirebaseStorage
 import UIKit
 
+// This repository handles all Firestore operations for events
 class EventRepository {
-    private let TAG = "EventRepository"
-    
-    private let firestore = Firestore.firestore()
-    private let auth = Auth.auth()
+    private let db = Firestore.firestore()
     private let storage = Storage.storage()
-    private let imageRepository: ImageRepository
     
-    init(imageRepository: ImageRepository = ImageRepository()) {
-        self.imageRepository = imageRepository
-    }
-    
-    /**
-     * Create a new event in Firestore with Firebase Storage image storage
-     * @param event The event data to save
-     * @param backgroundImage UIImage of the background image to upload
-     */
+    // Create a new event document in Firestore
     func createEvent(_ event: EventModel, backgroundImage: UIImage?, completion: @escaping (Result<EventModel, Error>) -> Void) {
-        // Step 1: Get current user ID
-        guard let userId = auth.currentUser?.uid else {
-            completion(.failure(NSError(domain: "EventRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not logged in"])))
+        // First, get current user ID
+        guard let userId = Auth.auth().currentUser?.uid else {
+            completion(.failure(NSError(domain: "EventRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])))
             return
         }
         
-        // Step 2: Create event with user ID
-        var newEvent = event
-        let eventData = event.toDict()
+        // Create a mutable copy of event with the current user as creator
+        // Since EventModel has immutable properties, we need to create a new instance
+        let eventWithCreator = EventModel(
+            id: event.id,
+            eventName: event.eventName,
+            title: event.title,
+            subtitle: event.subtitle,
+            buttonText: event.buttonText,
+            backgroundImageUrl: event.backgroundImageUrl,
+            creatorId: userId, // Set current user as creator
+            status: event.status,
+            endDate: event.endDate,
+            createdAt: event.createdAt,
+            revealPhotosTiming: event.revealPhotosTiming,
+            photosPerPerson: event.photosPerPerson,
+            maxGuests: event.maxGuests,
+            galleryAccess: event.galleryAccess,
+            participants: event.participants
+        )
         
-        // Step 3: If we have an image, upload it first
+        // If there's an image, upload it first, then create the event
         if let image = backgroundImage {
-            imageRepository.uploadEventBackgroundImage(eventId: event.id, image: image) { [weak self] result in
+            uploadEventImage(eventId: event.id, image: image) { result in
                 switch result {
                 case .success(let imageUrl):
-                    // Update event with image URL
-                    var updatedEventData = eventData
-                    updatedEventData["background_image_url"] = imageUrl
-                    updatedEventData["creator_id"] = userId
+                    // Create another copy of the event with the image URL
+                    let eventWithImage = EventModel(
+                        id: eventWithCreator.id,
+                        eventName: eventWithCreator.eventName,
+                        title: eventWithCreator.title,
+                        subtitle: eventWithCreator.subtitle,
+                        buttonText: eventWithCreator.buttonText,
+                        backgroundImageUrl: imageUrl,
+                        creatorId: eventWithCreator.creatorId,
+                        status: eventWithCreator.status,
+                        endDate: eventWithCreator.endDate,
+                        createdAt: eventWithCreator.createdAt,
+                        revealPhotosTiming: eventWithCreator.revealPhotosTiming,
+                        photosPerPerson: eventWithCreator.photosPerPerson,
+                        maxGuests: eventWithCreator.maxGuests,
+                        galleryAccess: eventWithCreator.galleryAccess,
+                        participants: eventWithCreator.participants
+                    )
                     
-                    // Now save to Firestore
-                    self?.firestore.collection(EventModel.COLLECTION_NAME).document(event.id).setData(updatedEventData) { error in
-                        if let error = error {
-                            completion(.failure(error))
-                            return
-                        }
-                        
-                        // Create updated event model with the image URL and creator ID
-                        let updatedEvent = EventModel(
-                            id: event.id,
-                            eventName: event.eventName,
-                            title: event.title,
-                            subtitle: event.subtitle,
-                            buttonText: event.buttonText,
-                            backgroundImageUrl: imageUrl,
-                            creatorId: userId,
-                            status: event.status,
-                            endDate: event.endDate,
-                            createdAt: event.createdAt,
-                            revealPhotosTiming: event.revealPhotosTiming,
-                            photosPerPerson: event.photosPerPerson,
-                            maxGuests: event.maxGuests,
-                            galleryAccess: event.galleryAccess,
-                            participants: event.participants
-                        )
-                        
-                        completion(.success(updatedEvent))
-                    }
+                    // Continue with event creation
+                    self.saveEventToFirestore(eventWithImage, completion: completion)
                     
                 case .failure(let error):
                     completion(.failure(error))
                 }
             }
         } else {
-            // No image, just save the event directly
-            var updatedEventData = eventData
-            updatedEventData["creator_id"] = userId
-            
-            firestore.collection(EventModel.COLLECTION_NAME).document(event.id).setData(updatedEventData) { error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-                
-                // Create updated event model with the creator ID
-                let updatedEvent = EventModel(
-                    id: event.id,
-                    eventName: event.eventName,
-                    title: event.title,
-                    subtitle: event.subtitle,
-                    buttonText: event.buttonText,
-                    backgroundImageUrl: "",
-                    creatorId: userId,
-                    status: event.status,
-                    endDate: event.endDate,
-                    createdAt: event.createdAt,
-                    revealPhotosTiming: event.revealPhotosTiming,
-                    photosPerPerson: event.photosPerPerson,
-                    maxGuests: event.maxGuests,
-                    galleryAccess: event.galleryAccess,
-                    participants: event.participants
-                )
-                
-                completion(.success(updatedEvent))
+            // No image, just create the event
+            saveEventToFirestore(eventWithCreator, completion: completion)
+        }
+    }
+    
+    // Helper method to save event to Firestore
+    private func saveEventToFirestore(_ event: EventModel, completion: @escaping (Result<EventModel, Error>) -> Void) {
+        let eventRef = db.collection(EventModel.COLLECTION_NAME).document(event.id)
+        
+        eventRef.setData(event.toDict()) { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(event))
             }
         }
     }
     
-    /**
-     * Update an event's image and return the new image URL
-     * @param eventId ID of the event to update
-     * @param image UIImage of the new image
-     * @return Result containing the new image URL or an error
-     */
+    // Upload an image to Firebase Storage
+    func uploadEventImage(eventId: String, image: UIImage, completion: @escaping (Result<String, Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(.failure(NSError(domain: "EventRepository", code: 400, userInfo: [NSLocalizedDescriptionKey: "Could not process image"])))
+            return
+        }
+        
+        let storageRef = storage.reference().child("event_backgrounds/\(eventId).jpg")
+        
+        storageRef.putData(imageData, metadata: nil) { metadata, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            
+            storageRef.downloadURL { url, error in
+                if let error = error {
+                    completion(.failure(error))
+                } else if let url = url {
+                    completion(.success(url.absoluteString))
+                } else {
+                    completion(.failure(NSError(domain: "EventRepository", code: 500, userInfo: [NSLocalizedDescriptionKey: "Unknown error uploading image"])))
+                }
+            }
+        }
+    }
+    
+    // Update an event's image
     func updateEventImage(eventId: String, image: UIImage, completion: @escaping (Result<String, Error>) -> Void) {
-        imageRepository.uploadEventBackgroundImage(eventId: eventId, image: image) { [weak self] result in
-            switch result {
-            case .success(let imageUrl):
-                // Update the event with the new image URL
-                self?.firestore.collection(EventModel.COLLECTION_NAME).document(eventId).updateData([
-                    "background_image_url": imageUrl
-                ]) { error in
-                    if let error = error {
-                        completion(.failure(error))
-                        return
-                    }
-                    
-                    completion(.success(imageUrl))
-                }
-                
-            case .failure(let error):
+        // Reuse the upload method
+        uploadEventImage(eventId: eventId, image: image, completion: completion)
+    }
+    
+    // Update an existing event
+    func updateEvent(_ event: EventModel, completion: @escaping (Result<Void, Error>) -> Void) {
+        let eventRef = db.collection(EventModel.COLLECTION_NAME).document(event.id)
+        
+        eventRef.updateData(event.toDict()) { error in
+            if let error = error {
                 completion(.failure(error))
+            } else {
+                completion(.success(()))
             }
         }
     }
     
-    /**
-     * Get events hosted by the current user
-     */
+    // Get all events where the current user is the creator
     func getHostedEvents(completion: @escaping ([EventModel]) -> Void) {
-        guard let userId = auth.currentUser?.uid else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             completion([])
             return
         }
         
-        firestore.collection(EventModel.COLLECTION_NAME)
+        db.collection(EventModel.COLLECTION_NAME)
             .whereField("creator_id", isEqualTo: userId)
-            .order(by: "created_at", descending: true)
-            .addSnapshotListener { querySnapshot, error in
-                guard let documents = querySnapshot?.documents else {
-                    print("Error fetching hosted events: \(error?.localizedDescription ?? "Unknown error")")
+            .getDocuments { snapshot, error in
+                guard let documents = snapshot?.documents else {
                     completion([])
                     return
                 }
@@ -169,21 +153,17 @@ class EventRepository {
             }
     }
     
-    /**
-     * Get events where the user is a participant
-     */
+    // Get all events where the current user is a participant
     func getParticipatingEvents(completion: @escaping ([EventModel]) -> Void) {
-        guard let userId = auth.currentUser?.uid else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             completion([])
             return
         }
         
-        firestore.collection(EventModel.COLLECTION_NAME)
+        db.collection(EventModel.COLLECTION_NAME)
             .whereField("participants", arrayContains: userId)
-            .order(by: "created_at", descending: true)
-            .addSnapshotListener { querySnapshot, error in
-                guard let documents = querySnapshot?.documents else {
-                    print("Error fetching participating events: \(error?.localizedDescription ?? "Unknown error")")
+            .getDocuments { snapshot, error in
+                guard let documents = snapshot?.documents else {
                     completion([])
                     return
                 }
@@ -193,152 +173,22 @@ class EventRepository {
             }
     }
     
-    /**
-     * Get a single event by ID
-     */
-    func getEventById(eventId: String, completion: @escaping (Result<EventModel, Error>) -> Void) {
-        firestore.collection(EventModel.COLLECTION_NAME).document(eventId).getDocument { documentSnapshot, error in
+    // Get a single event by ID
+    func getEvent(eventId: String, completion: @escaping (Result<EventModel, Error>) -> Void) {
+        let eventRef = db.collection(EventModel.COLLECTION_NAME).document(eventId)
+        
+        eventRef.getDocument { document, error in
             if let error = error {
                 completion(.failure(error))
                 return
             }
             
-            guard let document = documentSnapshot, 
-                  let event = EventModel.fromDocument(document) else {
-                let error = NSError(domain: "EventRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Event not found"])
-                completion(.failure(error))
+            guard let document = document, document.exists, let event = EventModel.fromDocument(document) else {
+                completion(.failure(NSError(domain: "EventRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Event not found"])))
                 return
             }
             
             completion(.success(event))
-        }
-    }
-    
-    /**
-     * Update an existing event
-     */
-    func updateEvent(_ event: EventModel, completion: @escaping (Result<EventModel, Error>) -> Void) {
-        guard let userId = auth.currentUser?.uid else {
-            let error = NSError(domain: "EventRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not logged in"])
-            completion(.failure(error))
-            return
-        }
-        
-        if event.creatorId != userId {
-            let error = NSError(domain: "EventRepository", code: 403, userInfo: [NSLocalizedDescriptionKey: "Not authorized to update this event"])
-            completion(.failure(error))
-            return
-        }
-        
-        firestore.collection(EventModel.COLLECTION_NAME).document(event.id).updateData(event.toDict()) { error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            
-            completion(.success(event))
-        }
-    }
-    
-    /**
-     * Add a participant to an event
-     */
-    func addParticipant(eventId: String, userId: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        firestore.collection(EventModel.COLLECTION_NAME).document(eventId).updateData([
-            "participants": FieldValue.arrayUnion([userId])
-        ]) { error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            
-            completion(.success(()))
-        }
-    }
-    
-    /**
-     * End an event (update status to ended)
-     */
-    func endEvent(eventId: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        guard let userId = auth.currentUser?.uid else {
-            let error = NSError(domain: "EventRepository", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not logged in"])
-            completion(.failure(error))
-            return
-        }
-        
-        // First get the event to check the creator
-        getEventById(eventId: eventId) { [weak self] result in
-            switch result {
-            case .success(let event):
-                if event.creatorId != userId {
-                    let error = NSError(domain: "EventRepository", code: 403, userInfo: [NSLocalizedDescriptionKey: "Not authorized to end this event"])
-                    completion(.failure(error))
-                    return
-                }
-                
-                // Update the event status
-                self?.firestore.collection(EventModel.COLLECTION_NAME).document(eventId).updateData([
-                    "status": "ended"
-                ]) { error in
-                    if let error = error {
-                        completion(.failure(error))
-                        return
-                    }
-                    
-                    completion(.success(()))
-                }
-                
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
-    }
-}
-
-// Image Repository class for handling image uploads
-class ImageRepository {
-    private let storage = Storage.storage()
-    
-    /**
-     * Upload an event background image to Firebase Storage
-     * @param eventId ID of the event
-     * @param image UIImage to upload
-     * @return Result containing the image URL or an error
-     */
-    func uploadEventBackgroundImage(eventId: String, image: UIImage, completion: @escaping (Result<String, Error>) -> Void) {
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
-            let error = NSError(domain: "ImageRepository", code: 400, userInfo: [NSLocalizedDescriptionKey: "Could not convert image to data"])
-            completion(.failure(error))
-            return
-        }
-        
-        let storageRef = storage.reference()
-        let eventImagesRef = storageRef.child("event_images")
-        let imageRef = eventImagesRef.child("\(eventId)_\(UUID().uuidString).jpg")
-        
-        let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"
-        
-        imageRef.putData(imageData, metadata: metadata) { metadata, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-            
-            imageRef.downloadURL { url, error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-                
-                guard let downloadURL = url else {
-                    let error = NSError(domain: "ImageRepository", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to get download URL"])
-                    completion(.failure(error))
-                    return
-                }
-                
-                completion(.success(downloadURL.absoluteString))
-            }
         }
     }
 }
