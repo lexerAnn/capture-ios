@@ -15,6 +15,10 @@ struct EventDetailsScreen: View {
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     
+    // Event title editor state
+    @State private var showingEventNameEditor = false
+    @State private var tempEventName: String
+    
     // Photo picker state
     @State private var showingImagePicker = false
     @State private var inputImage: UIImage?
@@ -49,18 +53,16 @@ struct EventDetailsScreen: View {
         self.eventName = eventName
         self.existingEvent = existingEvent
         self.isEditMode = isEditMode
-        print("Initializing EventDetailsScreen with editMode: \(isEditMode)")
-        if let event = existingEvent {
-            print("Loaded event with id: \(event.id), name: \(event.eventName)")
-        }
+        // Initialize the state variable in init
+        _tempEventName = State(initialValue: eventName)
     }
     
     var body: some View {
         ZStack {
-            Color.black.edgesIgnoringSafeArea(.all)
+            Color.black.ignoresSafeArea()
             
-            ScrollView {
-                VStack(spacing: 30) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 15) {
                     // Preview section
                     previewSection
                     
@@ -69,14 +71,29 @@ struct EventDetailsScreen: View {
                     
                     // Continue/Update button
                     actionButton
-                    Spacer(minLength: 0)
                 }
-                .padding(.bottom, 20)
+                .padding(.horizontal, 5)
+                .padding(.bottom, 0) // Remove bottom padding
             }
-            .padding(.horizontal, 5)
+            // Clip the scroll view to prevent expanding beyond screen
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationBarTitle(isEditMode ? "Edit Event" : "Event Details", displayMode: .inline)
-        .navigationBarItems(trailing: isEditMode ? EditButton() : nil)
+        // Explicitly ignore bottom safe area to eliminate any white space
+        .ignoresSafeArea(edges: .bottom)
+        .navigationBarTitle(tempEventName, displayMode: .inline)
+        .navigationBarItems(
+            trailing: isEditMode ? 
+                HStack {
+                    Button(action: {
+                        showingEventNameEditor = true
+                    }) {
+                        Image(systemName: "pencil.circle")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    EditButton()
+                } : nil
+        )
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(image: $inputImage)
                 .onDisappear {
@@ -85,6 +102,17 @@ struct EventDetailsScreen: View {
                         viewModel.updateBackgroundImage(inputImage)
                     }
                 }
+        }
+        .alert("Edit Event Name", isPresented: $showingEventNameEditor) {
+            TextField("Event Name", text: $tempEventName)
+            Button("Cancel", role: .cancel) {}
+            Button("OK") {
+                if var updatedEvent = viewModel.loadedEvent {
+                    viewModel.updateEventName(tempEventName)
+                    updatedEvent.eventName = tempEventName
+                    viewModel.populateFromEvent(event: updatedEvent)
+                }
+            }
         }
         .alert("Edit Title", isPresented: $showingTitleEditor) {
             TextField("Title", text: $tempTitle)
@@ -138,6 +166,7 @@ struct EventDetailsScreen: View {
             if let existingEvent = existingEvent {
                 // Load existing event for editing
                 viewModel.loadEvent(event: existingEvent)
+                tempEventName = existingEvent.eventName
                 
                 // Try to load the image if available
                 if !existingEvent.backgroundImageUrl.isEmpty {
@@ -565,21 +594,13 @@ struct EventDetailsScreen: View {
     // MARK: - Methods
     
     private func loadImageFromUrl(_ imageUrl: String) {
-        print("Loading image from URL: \(imageUrl)")
         guard let url = URL(string: imageUrl) else {
-            print("Invalid URL: \(imageUrl)")
             return
         }
         
         URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                print("Error loading image: \(error.localizedDescription)")
-                return
-            }
-            
             if let data = data, let uiImage = UIImage(data: data) {
                 DispatchQueue.main.async {
-                    print("Image loaded successfully")
                     self.inputImage = uiImage
                 }
             }
@@ -614,7 +635,7 @@ struct EventDetailsScreen: View {
     
     private func createEvent() {
         // Ensure we're updating the ViewModel with all the latest values
-        viewModel.updateEventName(eventName)
+        viewModel.updateEventName(tempEventName)
         viewModel.updateEventTitle(viewModel.loadedEvent?.title ?? tempTitle)
         viewModel.updateEventSubtitle(viewModel.loadedEvent?.subtitle ?? tempSubtitle)
         viewModel.updateButtonText(viewModel.loadedEvent?.buttonText ?? tempButtonText)
@@ -628,18 +649,14 @@ struct EventDetailsScreen: View {
     }
     
     private func updateEvent() {
-        print("Update button pressed, updating event...")
         guard let event = viewModel.loadedEvent else {
-            print("No loaded event found")
             errorMessage = "No event to update"
             showErrorAlert = true
             return
         }
         
-        print("Updating event with ID: \(event.id)")
-        
         // Update all values in the view model
-        viewModel.updateEventName(event.eventName)
+        viewModel.updateEventName(tempEventName)
         viewModel.updateEventTitle(event.title)
         viewModel.updateEventSubtitle(event.subtitle)
         viewModel.updateButtonText(event.buttonText)
@@ -655,7 +672,6 @@ struct EventDetailsScreen: View {
         
         // If there's a new image, update it
         if let image = inputImage {
-            print("Updating with new image")
             viewModel.updateBackgroundImage(image)
         }
         
@@ -665,10 +681,8 @@ struct EventDetailsScreen: View {
     
     // Handle state changes from the viewModel
     private func handleEventCreationStateChange(_ state: EventViewModel.EventCreationState) {
-        print("Event state changed: \(state)")
         switch state {
         case .success:
-            print("Operation successful")
             if isEditMode {
                 // Show success alert when updating
                 showSuccessAlert = true
@@ -677,13 +691,11 @@ struct EventDetailsScreen: View {
                 navigateToNextScreen = true
             }
         case .error(let message):
-            print("Error: \(message)")
             errorMessage = message
             showErrorAlert = true
-        case .idle:
-            print("State: idle")
-        case .loading:
-            print("State: loading")
+        case .idle, .loading:
+            // No action needed for these states
+            break
         }
     }
 }

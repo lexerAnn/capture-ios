@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-
 struct CreateScreen: View {
     @State private var occasionText = ""
     @State private var buttonEnabled = false
